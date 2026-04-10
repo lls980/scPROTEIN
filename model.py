@@ -172,7 +172,7 @@ class scPROTEIN_learning(torch.nn.Module):
             embedding = self.test()
             embedding_cpu = embedding.cpu().detach().numpy()
 
-            ########### me! adding elbow plot / kmeans here!!!!!!!!!!!!!
+            ######################### me! adding elbow plot / kmeans here!!!!!!!!!!!!!
             distortions = []
             inertias = []
             mapping1 = {}
@@ -197,7 +197,7 @@ class scPROTEIN_learning(torch.nn.Module):
                 if percentDecrease < 20:
                     self.num_protos = i
                     break
-            ##########
+            ######################################
 
             kmeans = KMeans(n_clusters=self.num_protos).fit(embedding_cpu)
             label_kmeans = kmeans.labels_
