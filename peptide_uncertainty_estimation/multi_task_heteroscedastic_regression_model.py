@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from peptide_uncertainty_utils import *
 import random
+import subprocess
 import torch.utils.data as Data
 from multi_task_heteroscedastic_regression_loss import regression_loss
 

@@ -1,11 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from textdistance import length
 from torch_geometric.nn import GCNConv
 from torch_geometric.utils import dropout_adj
 from prototype_loss import *
 from sklearn.cluster import KMeans
 from utils import *
+from sklearn.cluster import KMeans
+from sklearn import metrics
+from scipy.spatial.distance import cdist
+import numpy as np
+import matplotlib.pyplot as plt
 
 '''
 part of code is borrowed from https://github.com/CRIPAC-DIG/GRACE
@@ -143,7 +149,7 @@ class scPROTEIN_learning(torch.nn.Module):
         self.alpha = alpha
         self.seed = seed
         self.num_changed_edges = num_changed_edges
-        
+
     def train(self):
         setup_seed(self.seed)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
@@ -165,6 +171,34 @@ class scPROTEIN_learning(torch.nn.Module):
             # embedding = test(model, data.x.to(device), data.edge_index.to(device))
             embedding = self.test()
             embedding_cpu = embedding.cpu().detach().numpy()
+
+            ########### me! adding elbow plot / kmeans here!!!!!!!!!!!!!
+            distortions = []
+            inertias = []
+            mapping1 = {}
+            mapping2 = {}
+            K = range(1, 10)
+
+            for k in K:
+                kmeanModel = KMeans(n_clusters=k).fit(embedding_cpu)
+
+                distortions.append(
+                    sum(np.min(cdist(embedding_cpu, kmeanModel.cluster_centers_, 'euclidean'), axis=1) ** 2) / embedding_cpu.shape[0])
+
+                inertias.append(kmeanModel.inertia_)
+
+                mapping1[k] = distortions[-1]
+                mapping2[k] = inertias[-1]
+
+            for i in range(1,len(mapping1)):
+                firstJoint = mapping1[i]
+                nextJoint = mapping1[i+1]
+                percentDecrease = (1 - (firstJoint / nextJoint)) * 100
+                if percentDecrease < 20:
+                    self.num_protos = i
+                    break
+            ##########
+
             kmeans = KMeans(n_clusters=self.num_protos).fit(embedding_cpu)
             label_kmeans = kmeans.labels_
             centers = np.array([np.mean(embedding_cpu[label_kmeans == i,:], axis=0)
@@ -175,8 +209,6 @@ class scPROTEIN_learning(torch.nn.Module):
             label_kmeans = torch.Tensor(label_kmeans).long().to(self.device)
             proto_norm = torch.Tensor(proto_norm).to(self.device)
             loss_proto = get_proto_loss(embedding, centers, label_kmeans, proto_norm)       
-
-
 
             # topology denoising
             if self.topology_denoising:
