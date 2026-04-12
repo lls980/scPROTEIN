@@ -190,12 +190,14 @@ class scPROTEIN_learning(torch.nn.Module):
                 mapping1[k] = distortions[-1]
                 mapping2[k] = inertias[-1]
 
-            for i in range(1,len(mapping1)):
+            for i in range(len(mapping1)+1):
+                i = i + 1
                 firstJoint = mapping1[i]
                 nextJoint = mapping1[i+1]
                 percentDecrease = (1 - (firstJoint / nextJoint)) * 100
                 if percentDecrease < 20:
                     self.num_protos = i
+                    print("Elbow Plot K clusters: ", i)
                     break
             ######################################
 
