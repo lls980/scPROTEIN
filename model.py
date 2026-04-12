@@ -180,6 +180,7 @@ class scPROTEIN_learning(torch.nn.Module):
             K = range(1, 10)
 
             for k in K:
+                print("code is in calculating distortions")
                 kmeanModel = KMeans(n_clusters=k).fit(embedding_cpu)
 
                 distortions.append(
@@ -191,11 +192,13 @@ class scPROTEIN_learning(torch.nn.Module):
                 mapping2[k] = inertias[-1]
 
             for i in range(len(mapping1)+1):
+                print("checking which K to use")
                 i = i + 1
                 firstJoint = mapping1[i]
                 nextJoint = mapping1[i+1]
                 percentDecrease = (1 - (firstJoint / nextJoint)) * 100
                 if percentDecrease < 20:
+                    print("code is here")
                     self.num_protos = i
                     print("Elbow Plot K clusters: ", i)
                     break
