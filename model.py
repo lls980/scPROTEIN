@@ -6,6 +6,11 @@ from torch_geometric.utils import dropout_adj
 from prototype_loss import *
 from sklearn.cluster import KMeans
 from utils import *
+from sklearn.cluster import KMeans
+from sklearn import metrics
+from scipy.spatial.distance import cdist
+import numpy as np
+import matplotlib.pyplot as plt
 
 '''
 part of code is borrowed from https://github.com/CRIPAC-DIG/GRACE
@@ -15,13 +20,14 @@ part of code is borrowed from https://github.com/CRIPAC-DIG/GRACE
 # mask feature function
 def drop_feature(x, drop_prob):
     drop_mask = torch.empty(
-        (x.size(1), ),
+        (x.size(1),),
         dtype=torch.float32,
         device=x.device).uniform_(0, 1) < drop_prob
     x = x.clone()
     x[:, drop_mask] = 0
 
     return x
+
 
 # GCN encoder
 class Encoder(torch.nn.Module):
@@ -33,7 +39,7 @@ class Encoder(torch.nn.Module):
         assert k >= 2
         self.k = k
         self.conv = [base_model(in_channels, 2 * out_channels)]
-        for _ in range(1, k-1):
+        for _ in range(1, k - 1):
             self.conv.append(base_model(2 * out_channels, 2 * out_channels))
         self.conv.append(base_model(2 * out_channels, out_channels))
         self.conv = nn.ModuleList(self.conv)
@@ -80,7 +86,6 @@ class Model(torch.nn.Module):
             between_sim.diag()
             / (refl_sim.sum(1) + between_sim.sum(1) - refl_sim.diag()))
 
-
     def batched_semi_loss(self, z1: torch.Tensor, z2: torch.Tensor,
                           batch_size: int):
         device = z1.device
@@ -105,7 +110,7 @@ class Model(torch.nn.Module):
     # loss definition
     def loss(self, z1: torch.Tensor, z2: torch.Tensor,
              mean: bool = True, batch_size: int = 0):
-        
+
         h1 = self.projection(z1)
         h2 = self.projection(z2)
 
@@ -122,11 +127,12 @@ class Model(torch.nn.Module):
         return ret
 
 
-
 class scPROTEIN_learning(torch.nn.Module):
 
-    def __init__(self, model,device, data, drop_feature_rate_1,drop_feature_rate_2,drop_edge_rate_1,drop_edge_rate_2,
-                 learning_rate, weight_decay, num_protos, topology_denoising, num_epochs, alpha, num_changed_edges, seed):
+    def __init__(self, model, device, data, drop_feature_rate_1, drop_feature_rate_2, drop_edge_rate_1,
+                 drop_edge_rate_2,
+                 learning_rate, weight_decay, num_protos, topology_denoising, num_epochs, alpha, num_changed_edges,
+                 seed):
         super(scPROTEIN_learning, self).__init__()
         self.model = model
         self.data = data
@@ -143,13 +149,13 @@ class scPROTEIN_learning(torch.nn.Module):
         self.alpha = alpha
         self.seed = seed
         self.num_changed_edges = num_changed_edges
-        
+
     def train(self):
         setup_seed(self.seed)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         for epoch in range(1, self.num_epochs + 1):
             self.model.train()
-            
+
             optimizer.zero_grad()
             edge_index_1 = dropout_adj(self.data.edge_index, p=self.drop_edge_rate_1)[0]
             edge_index_2 = dropout_adj(self.data.edge_index, p=self.drop_edge_rate_2)[0]
@@ -160,24 +166,49 @@ class scPROTEIN_learning(torch.nn.Module):
             loss_node = self.model.loss(z1, z2, batch_size=0)
             # return loss
 
-
-
             # embedding = test(model, data.x.to(device), data.edge_index.to(device))
             embedding = self.test()
             embedding_cpu = embedding.cpu().detach().numpy()
-            print('code is before kmeans')
+
+
+            ########### me! adding elbow plot / kmeans here!!!!!!!!!!!!!
+            distortions = []
+            inertias = []
+            mapping1 = {}
+            mapping2 = {}
+            K = range(1, 10)
+
+            for k in K:
+                kmeanModel = KMeans(n_clusters=k).fit(embedding_cpu)
+
+                distortions.append(
+                    sum(np.min(cdist(embedding_cpu, kmeanModel.cluster_centers_, 'euclidean'), axis=1) ** 2) / embedding_cpu.shape[0])
+
+                inertias.append(kmeanModel.inertia_)
+
+                mapping1[k] = distortions[-1]
+                mapping2[k] = inertias[-1]
+
+            for i in range(len(mapping1) + 1):
+                i = i + 1
+                firstJoint = mapping1[i]
+                nextJoint = mapping1[i+1]
+                percentDecrease = (1 - (firstJoint / nextJoint)) * 100
+                if percentDecrease < 20:
+                    self.num_protos = i
+                    break
+            ########################################
+
             kmeans = KMeans(n_clusters=self.num_protos).fit(embedding_cpu)
             label_kmeans = kmeans.labels_
-            centers = np.array([np.mean(embedding_cpu[label_kmeans == i,:], axis=0)
+            centers = np.array([np.mean(embedding_cpu[label_kmeans == i, :], axis=0)
                                 for i in range(self.num_protos)])
             label_kmeans = label_kmeans[:, np.newaxis]
-            proto_norm = get_proto_norm(embedding_cpu, centers,label_kmeans,self.num_protos)
+            proto_norm = get_proto_norm(embedding_cpu, centers, label_kmeans, self.num_protos)
             centers = torch.Tensor(centers).to(self.device)
             label_kmeans = torch.Tensor(label_kmeans).long().to(self.device)
             proto_norm = torch.Tensor(proto_norm).to(self.device)
-            loss_proto = get_proto_loss(embedding, centers, label_kmeans, proto_norm)       
-
-
+            loss_proto = get_proto_loss(embedding, centers, label_kmeans, proto_norm)
 
             # topology denoising
             if self.topology_denoising:
@@ -197,7 +228,7 @@ class scPROTEIN_learning(torch.nn.Module):
 
                     coord_value_dict_wo_diag = {}
                     cnt = 0
-                    for key,value in coord_value_dict.items():
+                    for key, value in coord_value_dict.items():
                         if key[0] == key[1]:
                             cnt += 1
                         else:
@@ -231,15 +262,13 @@ class scPROTEIN_learning(torch.nn.Module):
                             cnt_remove += 1
 
                     edge_index = torch.tensor(np.array(edge_index_now_list).T, dtype=torch.long).to(self.device)
-                    self.data.edge_index = edge_index    
-            
-            
-            loss = loss_node + self.alpha*loss_proto
+                    self.data.edge_index = edge_index
+
+            loss = loss_node + self.alpha * loss_proto
             loss.backward()
             optimizer.step()
 
             print(f'(T) | Epoch={epoch:03d}, loss={loss:.4f} ')
-
 
     def test(self):
         self.model.eval()
@@ -250,10 +279,3 @@ class scPROTEIN_learning(torch.nn.Module):
         self.model.eval()
         z = self.model(self.data.x, self.data.edge_index)
         return z.cpu().detach().numpy()
-
-
-
-
-
-
-
