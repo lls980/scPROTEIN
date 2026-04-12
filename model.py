@@ -178,6 +178,7 @@ class scPROTEIN_learning(torch.nn.Module):
             mapping1 = {}
             mapping2 = {}
             K = range(1, 10)
+            print("code is before distortions")
 
             for k in K:
                 print("code is in calculating distortions")
