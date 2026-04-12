@@ -178,7 +178,8 @@ class scPROTEIN_learning(torch.nn.Module):
             mapping2 = {}
             K = range(1, 10)
 
-            for k in K:
+            for k in K
+                print("Calculating Disortions")
                 kmeanModel = KMeans(n_clusters=k).fit(embedding_cpu)
 
                 distortions.append(
@@ -196,6 +197,7 @@ class scPROTEIN_learning(torch.nn.Module):
                 percentDecrease = (1 - (firstJoint / nextJoint)) * 100
                 if percentDecrease < 20:
                     self.num_protos = i
+                    print('K-means Value:', self.num_protos)
                     break
             ########################################
 
