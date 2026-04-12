@@ -178,7 +178,7 @@ class scPROTEIN_learning(torch.nn.Module):
             mapping2 = {}
             K = range(1, 10)
 
-            for k in K
+            for k in K:
                 print("Calculating Disortions")
                 kmeanModel = KMeans(n_clusters=k).fit(embedding_cpu)
 
