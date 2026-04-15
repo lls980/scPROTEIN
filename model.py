@@ -189,17 +189,18 @@ class scPROTEIN_learning(torch.nn.Module):
 
                 mapping1[k] = distortions[-1]
                 mapping2[k] = inertias[-1]
-            for i in range(0, len(mapping1)):
-                print("Distortion ", i, ": ", mapping1[i])
 
-            for i in range(0,len(mapping1)):
+            for i in range(1, len(mapping1)):
+                print("Distortion", mapping1[i])
+
+            for i in range(1,len(mapping1)):
                 firstJoint = mapping1[i]
                 nextJoint = mapping1[i+1]
-                percentDecrease = (1 - (firstJoint / nextJoint)) * 100
+                decrease = firstJoint - nextJoint
                 print("firstJoint: ", firstJoint)
                 print("nextJoint: ", nextJoint)
-                print("Percent Decrease: ", percentDecrease)
-                if percentDecrease < 20:
+                print("Decrease: ", decrease)
+                if decrease < 1:
                     self.num_protos = i + 1
                     print('K-means Value:', self.num_protos)
                     break
